@@ -21,6 +21,10 @@ app.use(cors());
 // Parse JSON bodies
 app.use(express.json());
 
+app.get("/", (req, res) => {
+  res.status(200).json({ status: 200 });
+});
+
 app.get("/get", async (req: Request, res: Response) => {
   const { url, timeout } = req.query;
 
