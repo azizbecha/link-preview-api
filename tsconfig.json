@@ -5,7 +5,13 @@
     "rootDir": ".",
     "outDir": "./dist",
     "strict": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true
   },
   "include": ["src/**/*", "lib/**/*", "types/**/*", "constants/**/*"],
   "exclude": ["node_modules"]
