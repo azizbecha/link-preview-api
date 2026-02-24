@@ -5,6 +5,7 @@ import { z } from "zod";
 import { validURL } from "../lib/validUrl";
 import { fetchLinkPreview } from "../lib/fetchPreview";
 import { normalizeUrl } from "../lib/normalizeUrl";
+import { cacheMiddleware } from "../lib/cache";
 import {
   DEFAULT_TIMEOUT,
   MAX_TIMEOUT,
@@ -21,6 +22,7 @@ const querySchema = z.object({
     .max(MAX_TIMEOUT)
     .default(DEFAULT_TIMEOUT)
     .optional(),
+  noCache: z.string().optional(),
 });
 
 const app = new Hono();
@@ -33,6 +35,7 @@ app.get("/", (c) => {
 
 app.get(
   "/get",
+  cacheMiddleware(),
   zValidator("query", querySchema, (result, c) => {
     if (!result.success) {
       const message = result.error.issues[0]?.message ?? "Invalid query parameters";
