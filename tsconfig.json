@@ -1,18 +1,24 @@
 {
+  "$schema": "https://json.schemastore.org/tsconfig",
   "compilerOptions": {
-    "target": "es2020",
-    "module": "commonjs",
+    "module": "esnext",
+    "target": "ESNext",
+    "moduleResolution": "bundler",
     "rootDir": ".",
     "outDir": "./dist",
     "strict": true,
+    "types": ["node"],
+    "lib": ["ESNext"],
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "declaration": true,
     "declarationMap": true,
-    "sourceMap": true
+    "sourceMap": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": false
   },
   "include": ["src/**/*", "lib/**/*", "types/**/*", "constants/**/*"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "dist"]
 }

@@ -1,8 +1,8 @@
 import * as cheerio from "cheerio";
-import { LinkPreviewResponse } from "../types";
+import type { LinkPreviewResponse } from "../types";
 
 const USER_AGENT =
-  "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
+  "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)";
 
 export async function fetchLinkPreview(
   url: string,
@@ -67,6 +67,36 @@ export async function fetchLinkPreview(
 
     const mediaType = getMeta("og:type") || "website";
 
+    const author =
+      getMeta("author") || getMeta("article:author") || undefined;
+
+    const canonical =
+      $('link[rel="canonical"]').attr("href") || getMeta("og:url") || undefined;
+
+    const locale = getMeta("og:locale") || getMeta("language") || undefined;
+
+    const keywordsRaw = getMeta("keywords");
+    const keywords = keywordsRaw
+      ? keywordsRaw.split(",").map((k) => k.trim()).filter(Boolean)
+      : undefined;
+
+    const themeColor = getMeta("theme-color") || undefined;
+
+    const publisher =
+      getMeta("og:site_name") || getMeta("publisher") || undefined;
+
+    const twitterCard = getMeta("twitter:card") || undefined;
+    const twitterSite = getMeta("twitter:site") || undefined;
+
+    const video = getMeta("og:video") || getMeta("og:video:url") || undefined;
+    const audio = getMeta("og:audio") || getMeta("og:audio:url") || undefined;
+
+    const charsetMeta = $("meta[charset]").attr("charset");
+    const charset =
+      charsetMeta ||
+      contentType.match(/charset=([^\s;]+)/i)?.[1] ||
+      undefined;
+
     return {
       title,
       description,
@@ -76,6 +106,17 @@ export async function fetchLinkPreview(
       mediaType,
       contentType,
       siteName,
+      charset,
+      author,
+      canonical,
+      locale,
+      keywords,
+      themeColor,
+      publisher,
+      twitterCard,
+      twitterSite,
+      video,
+      audio,
     };
   } finally {
     clearTimeout(timer);
