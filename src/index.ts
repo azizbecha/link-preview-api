@@ -1,8 +1,7 @@
 import express from "express";
 import type { Request, Response } from "express";
 import { validURL } from "../lib/validUrl";
-import { getLinkPreview } from "link-preview-js";
-import { LinkPreviewResponse } from "../types";
+import { fetchLinkPreview } from "../lib/fetchPreview";
 import cors from "cors";
 import { normalizeUrl } from "../lib/normalizeUrl";
 import {
@@ -43,25 +42,9 @@ app.get("/get", async (req: Request, res: Response) => {
         ? Math.min(Math.max(parseInt(timeout, 10), MIN_TIMEOUT), MAX_TIMEOUT)
         : DEFAULT_TIMEOUT;
 
-    const data = await getLinkPreview(finalUrl, {
-      followRedirects: "follow",
-      timeout: finalTimeout,
-    });
+    const preview = await fetchLinkPreview(finalUrl, finalTimeout);
 
-    const normalized: LinkPreviewResponse = {
-      title: (data as any).title || (data as any).pageTitle,
-      description: (data as any).description || (data as any).metaDescription,
-      url: (data as any).url || url,
-      images:
-        (data as any).images ||
-        ((data as any).image ? [(data as any).image] : []),
-      favicons: (data as any).favicons || [],
-      mediaType: (data as any).mediaType,
-      contentType: (data as any).contentType,
-      siteName: (data as any).siteName || (data as any).site,
-    };
-
-    res.status(200).json({ status: 200, ...normalized });
+    res.status(200).json({ status: 200, ...preview });
   } catch (error) {
     console.error("Error fetching link preview:", error);
     res.status(500).json({ error: "Failed to fetch link preview" });
