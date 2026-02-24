@@ -1,5 +1,5 @@
 import * as cheerio from "cheerio";
-import { LinkPreviewResponse } from "../types";
+import type { LinkPreviewResponse } from "../types";
 
 const USER_AGENT =
   "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
