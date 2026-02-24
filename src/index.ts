@@ -39,8 +39,8 @@ app.get("/get", async (req: Request, res: Response) => {
   try {
     const finalUrl = normalizeUrl(url);
     const finalTimeout =
-      typeof timeout === "string" && !isNaN(parseInt(timeout))
-        ? Math.min(Math.max(parseInt(timeout), MIN_TIMEOUT), MAX_TIMEOUT)
+      typeof timeout === "string" && !Number.isNaN(parseInt(timeout, 10))
+        ? Math.min(Math.max(parseInt(timeout, 10), MIN_TIMEOUT), MAX_TIMEOUT)
         : DEFAULT_TIMEOUT;
 
     const data = await getLinkPreview(finalUrl, {
@@ -67,5 +67,11 @@ app.get("/get", async (req: Request, res: Response) => {
     res.status(500).json({ error: "Failed to fetch link preview" });
   }
 });
+
+if (process.env.NODE_ENV !== "production") {
+  app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+  });
+}
 
 export default app;
