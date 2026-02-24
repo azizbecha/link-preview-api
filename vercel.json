@@ -1,8 +1,9 @@
 {
+  "buildCommand": "",
   "rewrites": [
     {
       "source": "/(.*)",
-      "destination": "/src/index.ts"
+      "destination": "/api"
     }
   ]
 }
