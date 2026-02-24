@@ -5,11 +5,20 @@ const MOCK_HTML = `
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="utf-8" />
   <title>Example Page</title>
   <meta property="og:title" content="OG Title" />
   <meta property="og:description" content="OG Description" />
   <meta property="og:image" content="https://example.com/image.png" />
   <meta property="og:site_name" content="Example" />
+  <meta property="og:locale" content="en_US" />
+  <meta property="og:video" content="https://example.com/video.mp4" />
+  <meta name="author" content="John Doe" />
+  <meta name="keywords" content="example, test, preview" />
+  <meta name="theme-color" content="#ff6600" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@example" />
+  <link rel="canonical" href="https://example.com" />
   <link rel="icon" href="/favicon.ico" />
 </head>
 <body></body>
@@ -62,6 +71,15 @@ describe("GET /get", () => {
     expect(body.description).toBe("OG Description");
     expect(body.images).toContain("https://example.com/image.png");
     expect(body.siteName).toBe("Example");
+    expect(body.charset).toBe("utf-8");
+    expect(body.author).toBe("John Doe");
+    expect(body.canonical).toBe("https://example.com");
+    expect(body.locale).toBe("en_US");
+    expect(body.keywords).toEqual(["example", "test", "preview"]);
+    expect(body.themeColor).toBe("#ff6600");
+    expect(body.twitterCard).toBe("summary_large_image");
+    expect(body.twitterSite).toBe("@example");
+    expect(body.video).toBe("https://example.com/video.mp4");
   });
 
   it("returns 500 when fetch fails", async () => {
