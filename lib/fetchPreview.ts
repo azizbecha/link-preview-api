@@ -1,8 +1,10 @@
 import * as cheerio from "cheerio";
 import type { LinkPreviewResponse } from "../types";
+import { isCloudflareChallenge } from "./detectCloudflare";
+import { fetchOEmbed, mapOEmbedToPreview } from "./oembed";
 
 const USER_AGENT =
-  "facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)";
+  "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
 
 export async function fetchLinkPreview(
   url: string,
@@ -16,13 +18,22 @@ export async function fetchLinkPreview(
       signal: controller.signal,
       headers: {
         "User-Agent": USER_AGENT,
-        Accept: "text/html",
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
       },
       redirect: "follow",
     });
 
     const contentType = response.headers.get("content-type") || "";
     const html = await response.text();
+
+    if (isCloudflareChallenge(html)) {
+      const oembed = await fetchOEmbed(url, timeout);
+      if (oembed) {
+        return mapOEmbedToPreview(oembed, url);
+      }
+    }
+
     const $ = cheerio.load(html);
 
     const getMeta = (name: string): string | undefined => {

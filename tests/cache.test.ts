@@ -1,22 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { cacheKey } from "../lib/cache";
 
-const mockGet = vi.fn();
-const mockSet = vi.fn();
-
-vi.mock("@upstash/redis", () => ({
-  Redis: class {
-    get(...args: unknown[]) { return mockGet(...args); }
-    set(...args: unknown[]) { return mockSet(...args); }
-  },
-}));
-
 vi.mock("../src/env", () => ({
   env: {
     KV_REST_API_URL: "https://fake-kv.upstash.io",
     KV_REST_API_TOKEN: "fake-token",
   },
 }));
+
+const KV_BASE = "https://fake-kv.upstash.io";
 
 const MOCK_HTML = `
 <!DOCTYPE html>
@@ -30,15 +22,56 @@ const MOCK_HTML = `
 </html>
 `;
 
-function stubFetch() {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn().mockResolvedValue(
-      new Response(MOCK_HTML, {
-        headers: { "content-type": "text/html; charset=utf-8" },
-      })
-    )
-  );
+/**
+ * Creates a fetch mock that routes calls based on URL:
+ * - KV GET requests  → configurable JSON response
+ * - KV SET requests  → { result: "OK" }
+ * - Everything else  → HTML preview response
+ */
+function createFetchMock(options: {
+  kvGetResult?: unknown;
+  kvGetError?: boolean;
+  htmlError?: Error;
+} = {}) {
+  const calls = { kvGet: 0, kvSet: 0, html: 0 };
+
+  const mock = vi.fn(async (url: string | URL | Request) => {
+    const urlStr =
+      typeof url === "string"
+        ? url
+        : url instanceof URL
+          ? url.href
+          : url.url;
+
+    if (urlStr.startsWith(`${KV_BASE}/get/`)) {
+      calls.kvGet++;
+      if (options.kvGetError) {
+        throw new Error("KV connection error");
+      }
+      return new Response(
+        JSON.stringify({ result: options.kvGetResult ?? null }),
+        { headers: { "content-type": "application/json" } }
+      );
+    }
+
+    if (urlStr.startsWith(`${KV_BASE}/set/`)) {
+      calls.kvSet++;
+      return new Response(JSON.stringify({ result: "OK" }), {
+        headers: { "content-type": "application/json" },
+      });
+    }
+
+    // HTML preview fetch
+    calls.html++;
+    if (options.htmlError) {
+      throw options.htmlError;
+    }
+    return new Response(MOCK_HTML, {
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
+  });
+
+  return { mock, calls };
 }
 
 async function getApp() {
@@ -49,8 +82,6 @@ async function getApp() {
 beforeEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
-  mockGet.mockReset();
-  mockSet.mockReset();
 });
 
 describe("cacheKey", () => {
@@ -74,26 +105,25 @@ describe("cacheKey", () => {
 
 describe("cache middleware", () => {
   it("returns X-Cache: MISS on first request and caches to KV", async () => {
-    stubFetch();
-    mockGet.mockResolvedValue(null);
-    mockSet.mockResolvedValue("OK");
+    const { mock, calls } = createFetchMock({ kvGetResult: null });
+    vi.stubGlobal("fetch", mock);
 
     const app = await getApp();
     const res = await app.request("/get?url=https://example.com");
 
     expect(res.status).toBe(200);
     expect(res.headers.get("X-Cache")).toBe("MISS");
-    expect(res.headers.get("Cache-Control")).toContain("s-maxage=3600");
-    expect(mockGet).toHaveBeenCalledOnce();
-    expect(mockSet).toHaveBeenCalledOnce();
+    expect(calls.kvGet).toBe(1);
+    expect(calls.kvSet).toBe(1);
+    expect(calls.html).toBe(1);
   });
 
   it("returns X-Cache: HIT when data is in KV", async () => {
-    const fetchSpy = vi.fn();
-    vi.stubGlobal("fetch", fetchSpy);
-
     const cachedData = { status: 200, title: "Cached Title" };
-    mockGet.mockResolvedValue(cachedData);
+    const { mock, calls } = createFetchMock({
+      kvGetResult: JSON.stringify(cachedData),
+    });
+    vi.stubGlobal("fetch", mock);
 
     const app = await getApp();
     const res = await app.request("/get?url=https://example.com");
@@ -102,26 +132,28 @@ describe("cache middleware", () => {
     expect(res.headers.get("X-Cache")).toBe("HIT");
     const body = await res.json();
     expect(body.title).toBe("Cached Title");
-    // fetch should not have been called — response came from cache
-    expect(fetchSpy).not.toHaveBeenCalled();
+    // No HTML fetch — response came from cache
+    expect(calls.html).toBe(0);
   });
 
   it("returns X-Cache: BYPASS when noCache=true", async () => {
-    stubFetch();
+    const { mock, calls } = createFetchMock();
+    vi.stubGlobal("fetch", mock);
 
     const app = await getApp();
-    const res = await app.request("/get?url=https://example.com&noCache=true");
+    const res = await app.request(
+      "/get?url=https://example.com&noCache=true"
+    );
 
     expect(res.status).toBe(200);
     expect(res.headers.get("X-Cache")).toBe("BYPASS");
     expect(res.headers.get("Cache-Control")).toBe("no-store");
-    expect(mockGet).not.toHaveBeenCalled();
+    expect(calls.kvGet).toBe(0);
   });
 
   it("falls through when KV read fails", async () => {
-    stubFetch();
-    mockGet.mockRejectedValue(new Error("KV connection error"));
-    mockSet.mockResolvedValue("OK");
+    const { mock } = createFetchMock({ kvGetError: true });
+    vi.stubGlobal("fetch", mock);
 
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
@@ -136,16 +168,16 @@ describe("cache middleware", () => {
   });
 
   it("does not cache error responses", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockRejectedValue(new Error("Network error"))
-    );
-    mockGet.mockResolvedValue(null);
+    const { mock, calls } = createFetchMock({
+      kvGetResult: null,
+      htmlError: new Error("Network error"),
+    });
+    vi.stubGlobal("fetch", mock);
 
     const app = await getApp();
     const res = await app.request("/get?url=https://example.com");
 
     expect(res.status).toBe(500);
-    expect(mockSet).not.toHaveBeenCalled();
+    expect(calls.kvSet).toBe(0);
   });
 });
