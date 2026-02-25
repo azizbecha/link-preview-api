@@ -21,6 +21,7 @@
   "dependencies": {
     "@hono/zod-validator": "latest",
     "@t3-oss/env-core": "^0.13.10",
+    "@upstash/redis": "^1.36.2",
     "@vercel/kv": "^3.0.0",
     "cheerio": "^1.2.0",
     "hono": "^4.12.2",

@@ -1,23 +1,13 @@
 import { createMiddleware } from "hono/factory";
-import { createClient } from "@vercel/kv";
+import { env } from "../src/env";
 import {
   CACHE_TTL_SECONDS,
-  CACHE_SWR_SECONDS,
   CACHE_KEY_PREFIX,
 } from "../constants";
+import { normalizeUrl } from "./normalizeUrl";
 
 function isKvConfigured(): boolean {
-  return Boolean(
-    process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN
-  );
-}
-
-function getKv() {
-  return createClient({
-    url: process.env.KV_REST_API_URL!,
-    token: process.env.KV_REST_API_TOKEN!,
-    cache: "no-store",
-  });
+  return Boolean(env.KV_REST_API_URL && env.KV_REST_API_TOKEN);
 }
 
 export async function cacheKey(url: string): Promise<string> {
@@ -41,42 +31,65 @@ export function cacheMiddleware() {
     }
 
     const url = c.req.query("url");
+
     if (!url || !isKvConfigured()) {
       await next();
       return;
     }
 
-    const key = await cacheKey(url);
-    const kvClient = getKv();
+    const normalizedUrl = normalizeUrl(url);
+    const key = await cacheKey(normalizedUrl);
 
-    // Try KV read
+    // Use REST API directly to avoid SDK issues
+    const kvUrl = `${env.KV_REST_API_URL}/get/${key}`;
+    let cached = null;
     try {
-      const cached = await kvClient.get<Record<string, unknown>>(key);
-      if (cached) {
-        c.header("X-Cache", "HIT");
-        c.header(
-          "Cache-Control",
-          `public, s-maxage=${CACHE_TTL_SECONDS}, stale-while-revalidate=${CACHE_SWR_SECONDS}`
-        );
-        return c.json(cached);
+      const response = await fetch(kvUrl, {
+        headers: { Authorization: `Bearer ${env.KV_REST_API_TOKEN}` },
+      });
+      const rawText = await response.text();
+      const data = JSON.parse(rawText) as { result?: unknown };
+      if (data.result) {
+        if (typeof data.result === "string") {
+          cached = JSON.parse(data.result);
+        } else if (typeof data.result === "object") {
+          cached = data.result;
+        }
       }
     } catch (err) {
-      console.warn("KV read failed, falling through:", err);
+      console.warn("KV read failed:", err);
+    }
+
+    if (cached) {
+      c.header("X-Cache", "HIT");
+      c.header(
+        "Cache-Control",
+        "no-cache, no-store, must-revalidate"
+      );
+      return c.json(cached);
     }
 
     c.header("X-Cache", "MISS");
     await next();
 
     // Post-handler: cache successful responses
-    if (c.res.status === 200) {
+    const status = c.res.status;
+
+    if (status === 200) {
       c.header(
         "Cache-Control",
-        `public, s-maxage=${CACHE_TTL_SECONDS}, stale-while-revalidate=${CACHE_SWR_SECONDS}`
+        "no-cache, no-store, must-revalidate"
       );
 
       try {
         const body = await c.res.clone().json();
-        await kvClient.set(key, body, { ex: CACHE_TTL_SECONDS });
+        const setUrl = `${env.KV_REST_API_URL}/set/${key}/${encodeURIComponent(JSON.stringify(body))}?ex=${CACHE_TTL_SECONDS}`;
+        await fetch(setUrl, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${env.KV_REST_API_TOKEN}`,
+          },
+        });
       } catch (err) {
         console.warn("KV write failed:", err);
       }

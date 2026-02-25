@@ -11,6 +11,7 @@ import {
   MAX_TIMEOUT,
   MIN_TIMEOUT,
 } from "../constants";
+import { env } from "./env";
 
 const querySchema = z.object({
   url: z
@@ -31,6 +32,36 @@ app.use("*", cors());
 
 app.get("/", (c) => {
   return c.json({ status: 200 });
+});
+
+// Temporary debug endpoint
+app.get("/debug/redis", async (c) => {
+  const { Redis } = await import("@upstash/redis");
+  const key = c.req.query("key");
+  const action = c.req.query("action") || "read";
+  try {
+    const redis = new Redis({
+      url: env.KV_REST_API_URL!,
+      token: env.KV_REST_API_TOKEN!,
+    });
+    if (key && action === "read") {
+      const result = await redis.get(key);
+      return c.json({ key, result, type: typeof result, isNull: result === null });
+    }
+    if (key && action === "write") {
+      await redis.set(key, { test: "data" }, { ex: 60 });
+      const result = await redis.get(key);
+      return c.json({ key, writeOk: true, readResult: result });
+    }
+    // Default: write + read test
+    await redis.set("test:debug", { hello: "world" }, { ex: 60 });
+    const result = await redis.get("test:debug");
+    return c.json({ writeOk: true, readResult: result, readType: typeof result });
+  } catch (err) {
+    return c.json({
+      error: err instanceof Error ? err.message : String(err),
+    }, 500);
+  }
 });
 
 app.get(
