@@ -1,4 +1,4 @@
-import type { LinkPreviewResponse, OEmbedResponse } from "../types";
+import type { LinkPreviewResponse, OEmbedResponse, PreviewImage } from "../types";
 
 const NOEMBED_ENDPOINT = "https://noembed.com/embed";
 
@@ -46,9 +46,13 @@ export function mapOEmbedToPreview(
   oembed: OEmbedResponse,
   originalUrl: string
 ): LinkPreviewResponse {
-  const images: string[] = [];
+  const images: PreviewImage[] = [];
   if (oembed.thumbnail_url) {
-    images.push(oembed.thumbnail_url);
+    images.push({
+      url: oembed.thumbnail_url,
+      ...(oembed.thumbnail_width ? { width: oembed.thumbnail_width } : {}),
+      ...(oembed.thumbnail_height ? { height: oembed.thumbnail_height } : {}),
+    });
   }
 
   return {

@@ -14,11 +14,17 @@ export interface OEmbedResponse {
   height?: number;
 }
 
+export interface PreviewImage {
+  url: string;
+  width?: number;
+  height?: number;
+}
+
 export interface LinkPreviewResponse {
   title?: string;
   description?: string;
   url: string;
-  images?: string[];
+  images?: PreviewImage[];
   favicons?: string[];
   mediaType?: string;
   contentType?: string;

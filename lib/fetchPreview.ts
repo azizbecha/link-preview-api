@@ -1,7 +1,8 @@
 import * as cheerio from "cheerio";
-import type { LinkPreviewResponse } from "../types";
+import type { LinkPreviewResponse, PreviewImage } from "../types";
 import { isCloudflareChallenge } from "./detectCloudflare";
 import { fetchOEmbed, mapOEmbedToPreview } from "./oembed";
+import { fetchImageSize } from "./imageSize";
 
 const USER_AGENT =
   "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
@@ -55,10 +56,21 @@ export async function fetchLinkPreview(
 
     const siteName = getMeta("og:site_name") || undefined;
 
-    const images: string[] = [];
+    const images: PreviewImage[] = [];
     const ogImage = getMeta("og:image") || getMeta("twitter:image");
     if (ogImage) {
-      images.push(ogImage);
+      const metaWidth = parseInt(getMeta("og:image:width") || "", 10);
+      const metaHeight = parseInt(getMeta("og:image:height") || "", 10);
+
+      if (metaWidth && metaHeight) {
+        images.push({ url: ogImage, width: metaWidth, height: metaHeight });
+      } else {
+        const dims = await fetchImageSize(ogImage, timeout);
+        images.push({
+          url: ogImage,
+          ...(dims ? { width: dims.width, height: dims.height } : {}),
+        });
+      }
     }
 
     const favicons: string[] = [];

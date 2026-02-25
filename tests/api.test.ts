@@ -69,7 +69,7 @@ describe("GET /get", () => {
     expect(body.status).toBe(200);
     expect(body.title).toBe("OG Title");
     expect(body.description).toBe("OG Description");
-    expect(body.images).toContain("https://example.com/image.png");
+    expect(body.images).toContainEqual(expect.objectContaining({ url: "https://example.com/image.png" }));
     expect(body.siteName).toBe("Example");
     expect(body.charset).toBe("utf-8");
     expect(body.author).toBe("John Doe");
